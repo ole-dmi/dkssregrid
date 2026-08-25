@@ -1,0 +1,11 @@
+data/
+*.part
+__pycache__/
+*.pyc
+.venv/
+*.tif
+*.qml
+*.qgs
+*_bands/
+*.zip
+*.aux.xml
