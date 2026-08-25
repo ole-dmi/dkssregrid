@@ -31,10 +31,14 @@ try:
     from osgeo import gdal, osr
 except ImportError:  # pragma: no cover - depends on the interpreter in use
     sys.exit(
-        "dkss_to_geotiff.py needs the GDAL Python bindings, which are not in this\n"
-        "interpreter.  Create the repository venv once:\n\n"
-        "    /usr/bin/python3.12 -m venv --system-site-packages .venv\n\n"
-        "and run the script with .venv/bin/python."
+        "dkss_to_geotiff.py needs NumPy and the GDAL Python bindings, which are not\n"
+        "available in this interpreter ({}).\n\n"
+        "Either create a conda environment:\n\n"
+        "    conda create -n dkssregrid -c conda-forge python=3.12 gdal numpy\n\n"
+        "or, if your system already packages the bindings, reuse them in a venv:\n\n"
+        "    python3 -m venv --system-site-packages .venv\n\n"
+        "then run the script with that environment's interpreter.  See the README\n"
+        "for details.".format(sys.executable)
     )
 
 # EPSG:25832, snapped to whole kilometres, covering 6-16 E / 53.5-59 N: Danish

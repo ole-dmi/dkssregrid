@@ -1,12 +1,86 @@
 # dkssregrid
 
-Tools for working with DKSS storm-surge forecast fields.
+Tools for working with DKSS storm-surge forecast fields from the Danish
+Meteorological Institute (DMI).
+
+- **`dkss_download.py`** — fetch operational DKSS forecast GRIB files from the DMI
+  open data API.
+- **`dkss_to_geotiff.py`** — merge a downloaded run into a single GeoTIFF on a
+  regular grid, one band per forecast hour, ready for QGIS.
+
+## Setup
+
+```bash
+git clone https://github.com/ole-dmi/dkssregrid.git
+cd dkssregrid
+```
+
+Requirements differ between the two scripts:
+
+| script | needs |
+|---|---|
+| `dkss_download.py` | Python 3.10+ — **standard library only**, nothing to install |
+| `dkss_to_geotiff.py` | Python 3.10+, plus the **GDAL Python bindings** and **NumPy** |
+
+The DMI open data API needs no key or account, so `dkss_download.py` is usable
+immediately after cloning:
+
+```bash
+./dkss_download.py --list-runs
+```
+
+### Installing GDAL for `dkss_to_geotiff.py`
+
+GDAL's Python bindings must match the GDAL C library they are built against, which
+makes them the one genuinely awkward dependency. Pick whichever route fits your
+platform — the tools were developed against GDAL 3.8 and should work on any GDAL 3.x.
+
+**Conda / mamba — works the same on Linux, macOS and Windows, and is the most
+reliable option if you have no system GDAL:**
+
+```bash
+conda create -n dkssregrid -c conda-forge python=3.12 gdal numpy
+conda activate dkssregrid
+python dkss_to_geotiff.py --help
+```
+
+**System GDAL, Linux (Debian/Ubuntu):** if your distribution already packages the
+bindings, a venv with `--system-site-packages` reuses them, so nothing is compiled
+and the venv costs almost no disk:
+
+```bash
+sudo apt install gdal-bin python3-gdal python3-numpy
+python3 -m venv --system-site-packages .venv
+./.venv/bin/python dkss_to_geotiff.py --help
+```
+
+Substitute your distribution's equivalent packages elsewhere — `python3-gdal` on
+Fedora/RHEL, `gdal` via Homebrew on macOS.
+
+**pip:** only if a GDAL C library is already installed and its development headers
+are available. The pip package version must match the system library exactly:
+
+```bash
+pip install numpy "gdal==$(gdal-config --version)"
+```
+
+> **A note on which interpreter you run.** The GDAL bindings live in one specific
+> Python installation. If the `python3` first on your `PATH` is a different one — a
+> pyenv build, a `~/.local` install, a newer version than your distribution's — the
+> script exits with an `ImportError` message. Invoke the interpreter that has GDAL
+> explicitly (`./.venv/bin/python …`, or activate the conda environment) rather than
+> relying on `python3`.
+
+Verify the bindings are visible before going further:
+
+```bash
+python -c "from osgeo import gdal; print(gdal.__version__)"
+```
 
 ## `dkss_download.py`
 
 Downloads the operational DKSS forecast GRIB files from the DMI open data API
-(`https://opendataapi.dmi.dk/v1/forecastdata`) into `data/`. No API key is
-needed, and the script uses only the Python standard library (3.10+).
+(`https://opendataapi.dmi.dk/v1/forecastdata`) into `data/`.
 
 Each collection publishes **121 hourly GRIB files per model run** (+0 h … +120 h),
 one per forecast valid time:
@@ -21,7 +95,8 @@ one per forecast valid time:
 | `dkss_if`   | Isefjord                    |   0.4 MB | 0.05 GB |
 
 The default (all six, latest run) is **~4 GB per invocation** — use
-`--collections` and `--max-lead-hours` for smaller pulls.
+`--collections` and `--max-lead-hours` for smaller pulls. Make sure the target
+filesystem has room.
 
 ### Usage
 
@@ -92,40 +167,33 @@ overwrite the coarse ones wherever they have water:
 | `dkss_lf`   |       ~169 m | average |
 
 Land is carried through as nodata (`-9999`), taken from the GRIB bitmap, so the
-coastline stays sharp instead of bleeding into the sea. A full 121-hour run of
-all six domains takes about 30 s and produces a ~62 MB file.
+coastline stays sharp instead of bleeding into the sea. A full 121-hour run of all
+six domains produces a ~62 MB file, and takes on the order of half a minute on a
+typical desktop.
 
-### Setup
-
-The script needs the GDAL Python bindings. The system ones work, so the venv
-costs no disk and compiles nothing:
-
-```bash
-/usr/bin/python3.12 -m venv --system-site-packages .venv
-```
-
-Use `./.venv/bin/python` to run it — the default `python3` on this machine is
-3.14 from `~/.local`, which has no GDAL.
+Run it with the interpreter that has GDAL — `./.venv/bin/python` in the venv setup
+above, or plain `python` inside an activated conda environment. The examples below
+use `python`.
 
 ### Usage
 
 ```bash
 # whole latest run in data/, sea level, default extent
-./.venv/bin/python dkss_to_geotiff.py -o dkss_sealevel.tif
+python dkss_to_geotiff.py -o dkss_sealevel.tif
 
 # add a final band with the per-pixel maximum over the run (peak surge)
-./.venv/bin/python dkss_to_geotiff.py -o surge.tif --with-max
+python dkss_to_geotiff.py -o surge.tif --with-max
 
 # first 24 hours, inner Danish waters only
-./.venv/bin/python dkss_to_geotiff.py --collections dkss_idw --max-lead-hours 24 -o idw.tif
+python dkss_to_geotiff.py --collections dkss_idw --max-lead-hours 24 -o idw.tif
 
 # a different field, or a depth level
-./.venv/bin/python dkss_to_geotiff.py --field WTMP -o sst.tif
-./.venv/bin/python dkss_to_geotiff.py --field SALTY --level 25-DBSL -o salt25m.tif
+python dkss_to_geotiff.py --field WTMP -o sst.tif
+python dkss_to_geotiff.py --field SALTY --level 25-DBSL -o salt25m.tif
 
 # 500 m grid over a custom extent, and one GRIB file on its own
-./.venv/bin/python dkss_to_geotiff.py --res 500 --bbox "500000 6100000 700000 6300000" -o zoom.tif
-./.venv/bin/python dkss_to_geotiff.py ~/Downloads/DKSS_NSBS_SF_*.grib -o one.tif
+python dkss_to_geotiff.py --res 500 --bbox "500000 6100000 700000 6300000" -o zoom.tif
+python dkss_to_geotiff.py /path/to/DKSS_NSBS_SF_*.grib -o one.tif
 ```
 
 Fields are named by GDAL's decoding of the GRIB parameters, not by eccodes —
